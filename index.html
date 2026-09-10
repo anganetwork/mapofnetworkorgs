@@ -313,7 +313,7 @@
   // Baked in so every visitor sees the live map immediately -- no setup
   // step, no per-browser local storage dependency. "Sheet settings" lets
   // you point this page at a different sheet later without editing code.
-  var DEFAULT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRMJHFQ1vgpFc0v4GNhQtZKBLgiiZXL-R7JGEw_rxM89PcbT2YJdL7ms9Ycp3K9-a5fhlk5fQMEp9Un/pub?gid=1631066682&single=true&output=csv";
+  var DEFAULT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTId5Aukh1XVqy1f8J3XCbcsDMJ7GVx_noJpSriLvgUB3Z_9t7942cS2aJMkr3KSezPYM7RpxumRDHe/pub?gid=0&single=true&output=csv";
 
   function getSavedUrl(){ try { return localStorage.getItem(STORAGE_KEY); } catch(e){ return null; } }
   function saveUrl(url){ try { localStorage.setItem(STORAGE_KEY, url); } catch(e){} }
