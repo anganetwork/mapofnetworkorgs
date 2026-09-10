@@ -218,23 +218,28 @@
 
   var mapObj = null, cluster = null, markersByRow = [], missingCoords = 0;
 
-  // Exact colors for known Ministry Type values. Add more here as needed --
-  // the key must match the sheet's Ministry Type text exactly, capitalization included.
+  // Colors for known Ministry Type values. Matching ignores case and
+  // leading/trailing spaces, so "Church", " church ", "CHURCH" all match.
+  // Add more here as needed -- keys are lowercase.
   var TYPE_COLOR_OVERRIDES = {
-    'Church': '#0087cd',
-    'Ministry': '#005298',
-    'Missionary': '#D4A017',
+    'church': '#0087cd',
+    'ministry': '#005298',
+    'missionary': '#D4A017',
   };
   var TYPE_PALETTE = ['#4a7c59', '#8a5a9e', '#3a9aa0']; // fallback for any other type
-  var typeColors = {}; // filled in by assignTypeColors()
+  var typeColors = {}; // filled in by assignTypeColors(), keyed by the ORIGINAL (unnormalized) type text
+  var UNMATCHED_COLOR = '#6b6b6b'; // neutral gray -- makes a real mismatch obvious instead of hiding as red
+
+  function normType(t){ return (t || '').trim().toLowerCase(); }
 
   function assignTypeColors(rows){
     typeColors = {};
     var types = Array.from(new Set(rows.map(function(r){ return r.type; }).filter(Boolean))).sort();
     var nextFallback = 0;
     types.forEach(function(t){
-      if (TYPE_COLOR_OVERRIDES[t]) {
-        typeColors[t] = TYPE_COLOR_OVERRIDES[t];
+      var key = normType(t);
+      if (TYPE_COLOR_OVERRIDES[key]) {
+        typeColors[t] = TYPE_COLOR_OVERRIDES[key];
       } else {
         typeColors[t] = TYPE_PALETTE[nextFallback % TYPE_PALETTE.length];
         nextFallback++;
@@ -242,7 +247,7 @@
     });
   }
 
-  function colorForType(type){ return typeColors[type] || '#d9432e'; }
+  function colorForType(type){ return typeColors[type] || UNMATCHED_COLOR; }
 
   var iconCache = {};
   function pinIcon(color){
