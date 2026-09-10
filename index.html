@@ -83,6 +83,7 @@
     <span class="stat" id="countStat">—</span>
     <div class="controls">
       <input type="text" id="search" placeholder="Search name or address…">
+      <select id="stateFilter" hidden><option value="">All states</option></select>
       <select id="typeFilter" hidden><option value="">All types</option></select>
       <button class="secondary" id="refreshBtn">Refresh data</button>
       <button class="secondary" id="settingsBtn">Sheet settings</button>
@@ -119,6 +120,7 @@
   var els = {
     countStat: document.getElementById('countStat'),
     search: document.getElementById('search'),
+    stateFilter: document.getElementById('stateFilter'),
     typeFilter: document.getElementById('typeFilter'),
     refreshBtn: document.getElementById('refreshBtn'),
     settingsBtn: document.getElementById('settingsBtn'),
@@ -192,6 +194,7 @@
       return {
         name: kName ? r[kName] : '',
         type: kType ? r[kType] : '',
+        state: kState ? r[kState] : '',
         website: kWeb ? r[kWeb] : '',
         address: addrParts.join(', '),
         lat: kLat && r[kLat] ? parseFloat(r[kLat]) : NaN,
@@ -215,31 +218,81 @@
 
   var mapObj = null, cluster = null, markersByRow = [], missingCoords = 0;
 
-  function pinIcon(){
-    return L.divIcon({
-      className: '',
-      html: '<div style="width:16px;height:16px;border-radius:50% 50% 50% 0;background:#0087cd;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);transform:rotate(-45deg);"></div>',
-      iconSize: [16,16], iconAnchor: [8,16], popupAnchor: [0,-16],
+  // Exact colors for known Ministry Type values. Add more here as needed --
+  // the key must match the sheet's Ministry Type text exactly, capitalization included.
+  var TYPE_COLOR_OVERRIDES = {
+    'Church': '#0087cd',
+    'Ministry': '#005298',
+    'Missionary': '#D4A017',
+  };
+  var TYPE_PALETTE = ['#4a7c59', '#8a5a9e', '#3a9aa0']; // fallback for any other type
+  var typeColors = {}; // filled in by assignTypeColors()
+
+  function assignTypeColors(rows){
+    typeColors = {};
+    var types = Array.from(new Set(rows.map(function(r){ return r.type; }).filter(Boolean))).sort();
+    var nextFallback = 0;
+    types.forEach(function(t){
+      if (TYPE_COLOR_OVERRIDES[t]) {
+        typeColors[t] = TYPE_COLOR_OVERRIDES[t];
+      } else {
+        typeColors[t] = TYPE_PALETTE[nextFallback % TYPE_PALETTE.length];
+        nextFallback++;
+      }
     });
   }
 
-  function populateTypeFilter(rows){
-    var types = Array.from(new Set(rows.map(function(r){ return r.type; }).filter(Boolean))).sort();
-    if(!types.length){ els.typeFilter.hidden = true; return; }
-    els.typeFilter.hidden = false;
-    els.typeFilter.innerHTML = '<option value="">All types</option>' + types.map(function(t){
-      return '<option value="'+t.replace(/"/g,'&quot;')+'">'+t+'</option>';
+  function colorForType(type){ return typeColors[type] || '#d9432e'; }
+
+  var iconCache = {};
+  function pinIcon(color){
+    if(iconCache[color]) return iconCache[color];
+    var icon = L.divIcon({
+      className: '',
+      html: '<div style="width:16px;height:16px;border-radius:50% 50% 50% 0;background:'+color+';border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);transform:rotate(-45deg);"></div>',
+      iconSize: [16,16], iconAnchor: [8,16], popupAnchor: [0,-16],
+    });
+    iconCache[color] = icon;
+    return icon;
+  }
+
+  function renderLegend(){
+    var old = document.getElementById('legend');
+    if(old) old.remove();
+    var types = Object.keys(typeColors);
+    if(!types.length) return;
+    var box = document.createElement('div');
+    box.id = 'legend';
+    box.style.cssText = 'position:absolute; bottom:14px; left:14px; z-index:1000; background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:8px 12px; font-size:12px; box-shadow:var(--shadow); color:var(--text);';
+    box.innerHTML = types.map(function(t){
+      var safe = t.replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; });
+      return '<div style="display:flex;align-items:center;gap:6px;margin:2px 0;"><span style="width:10px;height:10px;border-radius:50%;background:'+typeColors[t]+';display:inline-block;flex:none;"></span>'+safe+'</div>';
+    }).join('');
+    document.getElementById('mapwrap').appendChild(box);
+  }
+
+  function populateSelect(selectEl, rows, field, label){
+    var values = Array.from(new Set(rows.map(function(r){ return r[field]; }).filter(Boolean))).sort();
+    if(!values.length){ selectEl.hidden = true; return; }
+    selectEl.hidden = false;
+    selectEl.innerHTML = '<option value="">' + label + '</option>' + values.map(function(v){
+      return '<option value="'+v.replace(/"/g,'&quot;')+'">'+v+'</option>';
     }).join('');
   }
+
+  function populateTypeFilter(rows){ populateSelect(els.typeFilter, rows, 'type', 'All types'); }
+  function populateStateFilter(rows){ populateSelect(els.stateFilter, rows, 'state', 'All states'); }
 
   function applyFilter(){
     var q = els.search.value.trim().toLowerCase();
     var type = els.typeFilter.value;
+    var state = els.stateFilter.value;
     cluster.clearLayers();
     var shown = 0;
     markersByRow.forEach(function(entry){
       var r = entry.row;
       if(type && r.type !== type) return;
+      if(state && r.state !== state) return;
       if(q && (r.name+' '+r.address).toLowerCase().indexOf(q) === -1) return;
       cluster.addLayer(entry.marker);
       shown++;
@@ -248,8 +301,8 @@
       (missingCoords ? '  ·  ' + missingCoords + ' need coordinates' : '');
   }
 
-  function addMarker(row, icon){
-    var marker = L.marker([row.lat, row.lng], { icon: icon });
+  function addMarker(row){
+    var marker = L.marker([row.lat, row.lng], { icon: pinIcon(colorForType(row.type)) });
     marker.bindPopup(popupHTML(row));
     markersByRow.push({ row: row, marker: marker });
   }
@@ -264,17 +317,26 @@
     markersByRow = [];
     missingCoords = 0;
     if(cluster) mapObj.removeLayer(cluster);
-    cluster = L.markerClusterGroup();
-    var icon = pinIcon();
+    // Clusters at wide zoom (country/world view), splits into individual
+    // pins once you zoom in past street/city level. Raise
+    // disableClusteringAtZoom to keep clustering longer while zooming in,
+    // lower it to split apart sooner.
+    cluster = L.markerClusterGroup({
+      disableClusteringAtZoom: 9,
+      maxClusterRadius: 60,
+    });
+    assignTypeColors(rows);
     rows.forEach(function(row){
       if(isFinite(row.lat) && isFinite(row.lng) && (row.lat || row.lng)){
-        addMarker(row, icon);
+        addMarker(row);
       } else {
         missingCoords++;
       }
     });
     mapObj.addLayer(cluster);
     populateTypeFilter(rows);
+    populateStateFilter(rows);
+    renderLegend();
     applyFilter();
     fitBounds();
     showBanner(missingCoords ? (missingCoords + ' ministr' + (missingCoords===1?'y has':'ies have') + ' no coordinates yet.') : '', !!missingCoords);
@@ -335,6 +397,7 @@
   });
   els.search.addEventListener('input', function(){ if(cluster) applyFilter(); });
   els.typeFilter.addEventListener('change', function(){ if(cluster) applyFilter(); });
+  els.stateFilter.addEventListener('change', function(){ if(cluster) applyFilter(); });
 
   initMap();
   boot(currentUrl());
