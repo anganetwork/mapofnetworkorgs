@@ -176,6 +176,18 @@
     return null;
   }
 
+  // Merges alternate/extra Ministry Type text into one of the three
+  // canonical labels below, so they share a single legend entry, filter
+  // option, and color -- not just a matching color. Keys are matched
+  // case/whitespace-insensitively. Add more merges here as needed.
+  var TYPE_ALIASES = {
+    'ministry & full time missionary': 'Missionary',
+  };
+  function applyTypeAlias(t){
+    var key = (t || '').trim().toLowerCase();
+    return TYPE_ALIASES[key] || t;
+  }
+
   function normalizeRows(raw){
     if(!raw.length) return [];
     var sample = raw[0];
@@ -193,7 +205,7 @@
       var addrParts = [kAddr, kCity, kState, kZip, kCountry].map(function(k){ return k ? r[k] : ''; }).filter(Boolean);
       return {
         name: kName ? r[kName] : '',
-        type: kType ? r[kType] : '',
+        type: kType ? applyTypeAlias(r[kType]) : '',
         state: kState ? r[kState] : '',
         website: kWeb ? r[kWeb] : '',
         address: addrParts.join(', '),
@@ -225,7 +237,6 @@
     'church': '#0087cd',
     'ministry': '#005298',
     'missionary': '#D4A017',
-    'ministry & full time missionary': '#D4A017',
   };
   var TYPE_PALETTE = ['#4a7c59', '#8a5a9e', '#3a9aa0']; // fallback for any other type
   var typeColors = {}; // filled in by assignTypeColors(), keyed by the ORIGINAL (unnormalized) type text
