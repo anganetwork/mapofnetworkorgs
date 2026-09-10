@@ -225,6 +225,7 @@
     'church': '#0087cd',
     'ministry': '#005298',
     'missionary': '#D4A017',
+    'ministry & full time missionary': '#D4A017',
   };
   var TYPE_PALETTE = ['#4a7c59', '#8a5a9e', '#3a9aa0']; // fallback for any other type
   var typeColors = {}; // filled in by assignTypeColors(), keyed by the ORIGINAL (unnormalized) type text
@@ -323,11 +324,11 @@
     missingCoords = 0;
     if(cluster) mapObj.removeLayer(cluster);
     // Clusters at wide zoom (country/world view), splits into individual
-    // pins once you zoom in past street/city level. Raise
+    // pins once you zoom in past state/regional level. Raise
     // disableClusteringAtZoom to keep clustering longer while zooming in,
-    // lower it to split apart sooner.
+    // lower it to split apart sooner (i.e. stay unclustered further out).
     cluster = L.markerClusterGroup({
-      disableClusteringAtZoom: 9,
+      disableClusteringAtZoom: 6,
       maxClusterRadius: 60,
     });
     assignTypeColors(rows);
